@@ -136,7 +136,7 @@ async def upload(request: Request, file: UploadFile = File(...)):
     user = current_user(request)
     if not user:
         return RedirectResponse("/login", status_code=303)
-    original = file.filename or "upload.bin"
+    original = os.path.basename(file.filename or "upload.bin")
     stored = original
     dest = UPLOADS / stored
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -150,7 +150,16 @@ async def upload(request: Request, file: UploadFile = File(...)):
 
 
 @app.get("/download")
-def download(name: str):
+def download(request: Request, name: str):
+    user = current_user(request)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+    with db() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM files WHERE stored_name = ? AND user_id = ?", (name, user["id"])
+        ).fetchone()
+    if not row:
+        return HTMLResponse("That file is not in the drop.", status_code=404)
     path = os.path.join(str(UPLOADS), name)
     if not os.path.isfile(path):
         return HTMLResponse("That file is not in the drop.", status_code=404)
